@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Costa Rica Multi-Employee Salary Calculator (2025)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Font for a clean look */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Styling for the remove button */
+        .remove-btn:hover {
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+    <div class="max-w-6xl mx-auto bg-white shadow-2xl rounded-2xl p-6 sm:p-10">
+        <header class="mb-8 border-b pb-4">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-blue-700 flex items-center">
+                <span class="mr-3">👥💰</span> CR Multi-Employee Payroll Tracker (2025)
+            </h1>
+            <p class="text-gray-500 mt-2">Calculate individual net salaries and grand totals for employer costs and deductions across multiple employees.</p>
+        </header>
+
+        <!-- Global Inputs -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 p-5 bg-gray-50 rounded-xl border border-gray-200">
+            <!-- Global Exchange Rate Input -->
+            <div class="space-y-2">
+                <label for="exchangeRate" class="block text-sm font-medium text-gray-700">Global Exchange Rate (CRC per USD)</label>
+                <div class="relative rounded-lg shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500">₡</span>
+                    </div>
+                    <input type="number" id="exchangeRate" value="499" min="1" step="0.01"
+                           oninput="calculateAll()"
+                           class="block w-full pl-8 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition duration-150 text-lg font-mono">
+                </div>
+            </div>
+            <div class="flex items-end">
+                <p class="text-sm text-gray-500 italic">All salary calculations will use this rate.</p>
+            </div>
+        </div>
+
+        <!-- Grand Totals Summary -->
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4 flex items-center">
+            Grand Totals (All Employees)
+        </h2>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <!-- Total Employer Cost -->
+            <div class="p-4 bg-blue-100 rounded-xl shadow-md">
+                <p class="text-sm font-medium text-blue-700">Total Employer Cost</p>
+                <p id="totalEmployerCostGrand" class="text-xl font-bold text-blue-800 mt-1">$0.00</p>
+            </div>
+            <!-- Total Net Salary -->
+            <div class="p-4 bg-green-100 rounded-xl shadow-md">
+                <p class="text-sm font-medium text-green-700">Total Net Salary</p>
+                <p id="totalNetSalaryGrand" class="text-xl font-bold text-green-800 mt-1">$0.00</p>
+            </div>
+             <!-- Total Income Tax -->
+            <div class="p-4 bg-red-100 rounded-xl shadow-md">
+                <p class="text-sm font-medium text-red-700">Total Income Tax</p>
+                <p id="totalIncomeTaxGrand" class="text-xl font-bold text-red-800 mt-1">$0.00</p>
+            </div>
+            <!-- Total Employer CCSS -->
+            <div class="p-4 bg-yellow-100 rounded-xl shadow-md">
+                <p class="text-sm font-medium text-yellow-700">Total Employer CCSS (26.67%)</p>
+                <p id="totalEmployerCCSSGrand" class="text-xl font-bold text-yellow-800 mt-1">$0.00</p>
+            </div>
+        </div>
+
+        <h2 class="text-2xl font-semibold text-gray-700 mb-6 border-b pb-2">Employee Records</h2>
+
+        <!-- Employee List Container -->
+        <div id="employee-list" class="space-y-6">
+            <!-- Employee Cards will be inserted here -->
+        </div>
+
+        <!-- Add Employee Button -->
+        <div class="mt-8">
+            <button onclick="addEmployee()"
+                    class="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-lg hover:bg-blue-700 transition duration-200 flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 3h-3m3 0h3m-6 3h6a2 2 0 002-2V7a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+                Add New Employee
+            </button>
+        </div>
+
+        <!-- Disclaimer -->
+        <footer class="mt-12 pt-4 border-t text-sm text-gray-400">
+            <p>Disclaimer: This calculator is based on the 2025 Costa Rica tax brackets and CCSS rates for general informational purposes only. It does not account for non-wage benefits, special deductions, or other statutory details. Consult a certified public accountant or legal advisor for specific financial advice.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Constants
+        const EMPLOYEE_CCSS_RATE = 0.0917; // 9.17%
+        const EMPLOYER_CCSS_RATE = 0.2667; // 26.67%
+        let employeeCounter = 0; // Unique ID counter
+
+        // 2025 Monthly Income Tax Brackets (CRC)
+        const TAX_BRACKETS = [
+            { min: 0, max: 922000, rate: 0.00 },
+            { min: 922000, max: 1352000, rate: 0.10 },
+            { min: 1352000, max: 2373000, rate: 0.15 },
+            { min: 2373000, max: 4745000, rate: 0.20 },
+            { min: 4745000, max: Infinity, rate: 0.25 },
+        ];
+
+        /**
+         * Formats a number as a currency string with 2 decimals and thousands separator.
+         * @param {number} num - The number to format.
+         * @param {string} currencyCode - 'USD' or 'CRC'.
+         * @param {boolean} showSign - Whether to include the negative sign for USD outputs.
+         * @returns {string} The formatted string.
+         */
+        function formatNumber(num, currencyCode, showSign = false) {
+            const formatted = Math.abs(num).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+            let symbol = '';
+            if (currencyCode === 'USD') symbol = '$';
+            if (currencyCode === 'CRC') symbol = '₡';
+
+            const sign = showSign && num < 0 ? '-' : (showSign && num > 0 ? '+' : '');
+
+            return `${sign}${symbol}${formatted}`;
+        }
+
+        /**
+         * Calculates the progressive monthly income tax in Costa Rica Colones (CRC.
+         * @param {number} grossCRC - The employee's monthly gross salary in CRC.
+         * @returns {number} The calculated monthly income tax in CRC.
+         */
+        function calculateIncomeTaxCRC(grossCRC) {
+            let totalTaxCRC = 0;
+
+            for (const bracket of TAX_BRACKETS) {
+                if (grossCRC > bracket.min) {
+                    // Portion of salary within this bracket
+                    const taxableInThisBracket = Math.min(grossCRC, bracket.max) - bracket.min;
+
+                    if (taxableInThisBracket > 0) {
+                        totalTaxCRC += taxableInThisBracket * bracket.rate;
+                    }
+                }
+            }
+            return totalTaxCRC;
+        }
+        
+        /**
+         * Updates the employee card title when the name input changes.
+         * This function does not recalculate, it only updates the display.
+         * @param {number} id - The unique ID for the employee.
+         */
+        function updateEmployeeNameDisplay(id) {
+            const nameInput = document.getElementById(`name-${id}`);
+            const nameDisplay = document.getElementById(`name-display-${id}`);
+            const name = nameInput.value.trim() || `Employee #${id}`;
+            nameDisplay.textContent = name;
+        }
+
+        /**
+         * Generates the HTML string for a new employee card, replacing the Total Cost output
+         * with the Name input field, and updating the breakdown section for dual currency.
+         * @param {number} id - The unique ID for the employee.
+         * @param {number} defaultSalary - The initial gross salary.
+         * @returns {string} The HTML for the employee card.
+         */
+        function createEmployeeCard(id, defaultSalary = 2820) {
+            return `
+                <div class="employee-card p-6 bg-white border border-gray-300 rounded-xl shadow-lg relative" data-employee-id="${id}">
+                    <h3 id="name-display-${id}" class="text-xl font-semibold text-gray-800 mb-4">Employee #${id}</h3>
+                    
+                    ${id > 1 ? `
+                        <button onclick="removeEmployee(${id})" class="remove-btn absolute top-4 right-4 text-white bg-red-500 hover:bg-red-600 p-2 rounded-full transition duration-150 shadow-md" title="Remove Employee">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    ` : ''}
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 items-center">
+                        <!-- Gross Salary Input -->
+                        <div class="md:col-span-1 space-y-2">
+                            <label for="salary-${id}" class="block text-sm font-medium text-gray-700">Gross Salary (USD)</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">$</span>
+                                <input type="number" id="salary-${id}" value="${defaultSalary}" min="0" step="0.01"
+                                    oninput="calculateAll()"
+                                    class="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-lg focus:ring-blue-500 focus:border-blue-500 font-mono">
+                            </div>
+                        </div>
+
+                        <!-- Employee Name Input and Net Salary Result (New layout) -->
+                        <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- New Name Input -->
+                            <div class="space-y-2 flex flex-col justify-end">
+                                <label for="name-${id}" class="block text-sm font-medium text-gray-700">Employee Name</label>
+                                <input type="text" id="name-${id}" value="Employee #${id}"
+                                    oninput="updateEmployeeNameDisplay(${id})"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-lg focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            
+                            <!-- Net Salary Result -->
+                            <div class="p-3 bg-green-50 rounded-lg flex flex-col justify-end">
+                                <p class="text-xs font-medium text-green-600">Net Salary (USD)</p>
+                                <p id="netSalaryUSD-${id}" class="text-base font-bold text-green-700 mt-1">$0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed breakdown section showing costs in both USD and CRC -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm bg-gray-50 p-4 rounded-lg">
+                        <!-- 1. Gross Salary (For context/reference) -->
+                        <div class="flex flex-col border-b sm:border-b-0 sm:border-r border-gray-200 pr-4 pb-2 sm:pb-0">
+                            <span class="text-gray-500 font-bold">Gross Salary (Total)</span>
+                            <span id="grossSalaryUSD-${id}" class="font-semibold text-gray-700 mt-1"></span>
+                            <span id="grossSalaryCRC-${id}" class="font-semibold text-gray-700"></span>
+                        </div>
+                        
+                        <!-- 2. Income Tax (Deduction) -->
+                        <div class="flex flex-col border-b sm:border-b-0 lg:border-r border-gray-200 pr-4 pb-2 sm:pb-0">
+                            <span class="text-gray-500 font-bold">Income Tax (Deduction)</span>
+                            <span id="incomeTaxUSD-${id}" class="font-semibold text-red-600 mt-1"></span>
+                            <span id="incomeTaxCRC-${id}" class="font-semibold text-red-600"></span>
+                        </div>
+
+                        <!-- 3. CCSS Employee (Deduction) -->
+                        <div class="flex flex-col border-b sm:border-b-0 sm:border-r border-gray-200 pr-4 pb-2 sm:pb-0">
+                            <span class="text-gray-500 font-bold">CCSS Employee (9.17%)</span>
+                            <span id="ccssEmployeeUSD-${id}" class="font-semibold text-red-600 mt-1"></span>
+                            <span id="ccssEmployeeCRC-${id}" class="font-semibold text-red-600"></span>
+                        </div>
+
+                        <!-- 4. CCSS Employer (Additional Cost) -->
+                        <div class="flex flex-col">
+                            <span class="text-gray-500 font-bold">CCSS Employer (26.67%)</span>
+                            <span id="ccssEmployerUSD-${id}" class="font-semibold text-blue-600 mt-1"></span>
+                            <span id="ccssEmployerCRC-${id}" class="font-semibold text-blue-600"></span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Calculates all figures for a single employee and updates their card.
+         * Now updates all fields for both USD and CRC.
+         * @param {number} id - The unique ID of the employee.
+         * @param {number} exchangeRate - The current global exchange rate.
+         * @returns {object} The key results needed for grand totals.
+         */
+        function calculateEmployee(id, exchangeRate) {
+            const salaryInput = document.getElementById(`salary-${id}`);
+            
+            // Defensive check
+            if (!salaryInput) {
+                return { incomeTaxUSD: 0, ccssEmployerUSD: 0, netSalaryUSD: 0, totalEmployerCostUSD: 0 };
+            }
+            
+            const salaryUSD = parseFloat(salaryInput.value) || 0;
+
+            // Handle invalid/zero inputs for this employee
+            if (salaryUSD <= 0) {
+                // Reset card outputs
+                document.getElementById(`netSalaryUSD-${id}`).textContent = formatNumber(0, 'USD');
+                document.getElementById(`grossSalaryUSD-${id}`).textContent = formatNumber(0, 'USD');
+                document.getElementById(`grossSalaryCRC-${id}`).textContent = formatNumber(0, 'CRC');
+                document.getElementById(`incomeTaxUSD-${id}`).textContent = formatNumber(0, 'USD', true);
+                document.getElementById(`incomeTaxCRC-${id}`).textContent = formatNumber(0, 'CRC', true);
+                document.getElementById(`ccssEmployeeUSD-${id}`).textContent = formatNumber(0, 'USD', true);
+                document.getElementById(`ccssEmployeeCRC-${id}`).textContent = formatNumber(0, 'CRC', true);
+                document.getElementById(`ccssEmployerUSD-${id}`).textContent = formatNumber(0, 'USD', false);
+                document.getElementById(`ccssEmployerCRC-${id}`).textContent = formatNumber(0, 'CRC', false);
+
+                return { incomeTaxUSD: 0, ccssEmployerUSD: 0, netSalaryUSD: 0, totalEmployerCostUSD: 0 };
+            }
+
+            // --- Core Calculations ---
+            const grossSalaryCRC = salaryUSD * exchangeRate;
+            
+            // 1. Income Tax (Calculated in CRC first)
+            const incomeTaxCRC = calculateIncomeTaxCRC(grossSalaryCRC);
+            const incomeTaxUSD = incomeTaxCRC / exchangeRate;
+            
+            // 2. Employee CCSS (Calculated in USD, converted to CRC)
+            const ccssEmployeeUSD = salaryUSD * EMPLOYEE_CCSS_RATE;
+            const ccssEmployeeCRC = ccssEmployeeUSD * exchangeRate;
+            
+            // 3. Employer CCSS (Calculated in USD, converted to CRC)
+            const ccssEmployerUSD = salaryUSD * EMPLOYER_CCSS_RATE;
+            const ccssEmployerCRC = ccssEmployerUSD * exchangeRate;
+
+            // 4. Net Salary & Total Cost
+            const netSalaryUSD = salaryUSD - incomeTaxUSD - ccssEmployeeUSD;
+            const totalEmployerCostUSD = salaryUSD + ccssEmployerUSD;
+
+            // --- Update Individual UI (Dual Currency) ---
+            document.getElementById(`netSalaryUSD-${id}`).textContent = formatNumber(netSalaryUSD, 'USD');
+            
+            // 1. Gross Salary (Reference)
+            document.getElementById(`grossSalaryUSD-${id}`).textContent = formatNumber(salaryUSD, 'USD');
+            document.getElementById(`grossSalaryCRC-${id}`).textContent = formatNumber(grossSalaryCRC, 'CRC');
+
+            // 2. Income Tax (Deduction)
+            document.getElementById(`incomeTaxUSD-${id}`).textContent = formatNumber(-incomeTaxUSD, 'USD', true);
+            document.getElementById(`incomeTaxCRC-${id}`).textContent = formatNumber(-incomeTaxCRC, 'CRC', true);
+
+            // 3. CCSS Employee (Deduction)
+            document.getElementById(`ccssEmployeeUSD-${id}`).textContent = formatNumber(-ccssEmployeeUSD, 'USD', true);
+            document.getElementById(`ccssEmployeeCRC-${id}`).textContent = formatNumber(-ccssEmployeeCRC, 'CRC', true);
+            
+            // 4. CCSS Employer (Cost)
+            document.getElementById(`ccssEmployerUSD-${id}`).textContent = formatNumber(ccssEmployerUSD, 'USD', false);
+            document.getElementById(`ccssEmployerCRC-${id}`).textContent = formatNumber(ccssEmployerCRC, 'CRC', false);
+
+            return { incomeTaxUSD, ccssEmployerUSD, netSalaryUSD, totalEmployerCostUSD };
+        }
+
+        /**
+         * Iterates through all employees, calculates results, and updates grand totals.
+         */
+        function calculateAll() {
+            const exchangeRate = parseFloat(document.getElementById('exchangeRate').value) || 1;
+            const employeeCards = document.querySelectorAll('.employee-card');
+
+            let totalIncomeTaxGrand = 0;
+            let totalEmployerCCSSGrand = 0;
+            let totalNetSalaryGrand = 0;
+            let totalEmployerCostGrand = 0;
+
+            if (exchangeRate <= 0) {
+                 // Reset totals if exchange rate is invalid
+                document.getElementById('exchangeRate').value = 1;
+                return calculateAll(); // Re-run with default rate
+            }
+
+            employeeCards.forEach(card => {
+                const id = parseInt(card.getAttribute('data-employee-id'));
+                const results = calculateEmployee(id, exchangeRate);
+                
+                // Ensure name display is updated on recalculation
+                updateEmployeeNameDisplay(id);
+
+                totalIncomeTaxGrand += results.incomeTaxUSD;
+                totalEmployerCCSSGrand += results.ccssEmployerUSD;
+                totalNetSalaryGrand += results.netSalaryUSD;
+                totalEmployerCostGrand += results.totalEmployerCostUSD;
+            });
+
+            // --- Update Grand Totals UI ---
+            document.getElementById('totalIncomeTaxGrand').textContent = formatNumber(totalIncomeTaxGrand, 'USD');
+            document.getElementById('totalEmployerCCSSGrand').textContent = formatNumber(totalEmployerCCSSGrand, 'USD');
+            document.getElementById('totalNetSalaryGrand').textContent = formatNumber(totalNetSalaryGrand, 'USD');
+            document.getElementById('totalEmployerCostGrand').textContent = formatNumber(totalEmployerCostGrand, 'USD');
+        }
+
+        /**
+         * Adds a new employee card to the list.
+         */
+        function addEmployee() {
+            employeeCounter++;
+            const employeeList = document.getElementById('employee-list');
+            
+            // Set default salary based on previous employee's salary if available, otherwise use initial example.
+            let defaultSalary = 2820;
+            const lastEmployeeCard = employeeList.lastElementChild;
+            if (lastEmployeeCard) {
+                const lastId = parseInt(lastEmployeeCard.getAttribute('data-employee-id'));
+                const lastSalaryInput = document.getElementById(`salary-${lastId}`);
+                if (lastSalaryInput) {
+                    defaultSalary = parseFloat(lastSalaryInput.value);
+                }
+            }
+
+            employeeList.insertAdjacentHTML('beforeend', createEmployeeCard(employeeCounter, defaultSalary));
+            calculateAll();
+        }
+
+        /**
+         * Removes an employee card from the list.
+         * @param {number} id - The unique ID of the employee to remove.
+         */
+        function removeEmployee(id) {
+            const card = document.querySelector(`.employee-card[data-employee-id="${id}"]`);
+            if (card) {
+                card.remove();
+                calculateAll();
+            }
+        }
+
+        // Initialize: Add the first employee on load
+        window.onload = () => {
+            // Start with the default employee (ID 1)
+            addEmployee();
+        };
+    </script>
+</body>
+</html>
